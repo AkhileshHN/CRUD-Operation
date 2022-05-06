@@ -1,0 +1,188 @@
+<aura:component controller="ContactTableController" implements="force:appHostable,flexipage:availableForAllPageTypes,force:hasRecordId"
+    access="global">
+
+<!-- 
+ █████  ████████ ████████ ██████  ██ ██████  ██    ██ ████████ ███████ ███████ 
+██   ██    ██       ██    ██   ██ ██ ██   ██ ██    ██    ██    ██      ██      
+███████    ██       ██    ██████  ██ ██████  ██    ██    ██    █████   ███████ 
+██   ██    ██       ██    ██   ██ ██ ██   ██ ██    ██    ██    ██           ██ 
+██   ██    ██       ██    ██   ██ ██ ██████   ██████     ██    ███████ ███████ 
+ -->
+    <!-- Create New Contact Attributes -->
+    <aura:attribute name="formFields" type="String[]" default="['Name', 'Mobile__c','Email__c', 'Blood_Group__c']" />
+    <aura:attribute name="nameInput" type="String"/>
+    <aura:attribute name="mobileInput" type="Integer" />
+    <aura:attribute name="email" type="String"/>
+    <aura:attribute name="bloodGroup" type="String" default="NA" />
+    <aura:attribute name="optionsBloodGroup" type="List" />
+    
+    
+    <!-- Edit Contact Attributes -->
+    <aura:attribute name="editModal" type="Boolean" default="false" />
+    <aura:attribute name="editRecordId" type="String" />
+
+    <!-- Data Table Attributes -->
+    <aura:attribute name="columns" type="List" default="[]" />
+    <aura:attribute name="keyField" type="Id" default="Id"/>
+    <aura:attribute name="data" type="MyContact__c" default="[]"/>
+    <aura:attribute name="dataDisplay" type="MyContact__c" default="[]"/>
+    <aura:attribute name="draftValues" type="MyContact__c"  default="[]"/>
+    <aura:attribute name="selectedRows" type="MyContact__c"  default="[]"/>
+    <aura:attribute name="editButton" type="Boolean" default="false" />
+    <aura:attribute name="deleteButton" type="Boolean"  default="false" />
+
+    <!-- Pagination Attributes -->
+    <aura:attribute name="pageNumber" type="Integer" default="1" />
+    <aura:attribute name="pageSize" type="Integer" default="10" />
+    <aura:attribute name="isLastPage" type="Boolean" default="false" />
+    
+    <aura:attribute name="fromData" type="Integer" default="1" />
+    <aura:attribute name="toData" type="Integer" default="10" />
+    <aura:attribute name="totalData" type="Integer" description="Total Number of records" default="0" />
+
+
+    <!-- Initiliazation -->
+    <aura:handler name="init" value="{! this }" action="{! c.init }" />
+<!-- 
+██████   █████  ████████  █████      ████████  █████  ██████  ██      ███████ 
+██   ██ ██   ██    ██    ██   ██        ██    ██   ██ ██   ██ ██      ██      
+██   ██ ███████    ██    ███████        ██    ███████ ██████  ██      █████   
+██   ██ ██   ██    ██    ██   ██        ██    ██   ██ ██   ██ ██      ██      
+██████  ██   ██    ██    ██   ██        ██    ██   ██ ██████  ███████ ███████ 
+ -->
+    <!-- Data Table -->
+    <lightning:card>
+        <aura:set attribute="actions">
+            <lightning:button label="Create New" onclick="{!c.closeModal}" />
+            <lightning:buttonGroup>
+                <aura:if isTrue="{!v.deleteButton}">
+                <lightning:button variant="brand" label="Delete" onclick="{!c.handleDelete}" />
+            </aura:if>
+                <aura:if isTrue="{!v.editButton}">
+                    <lightning:button variant="brand-outline" label="Edit Contact" onclick="{!c.handleEditModal}" />
+                </aura:if>
+            </lightning:buttonGroup>
+        </aura:set>
+        <aura:set attribute="title">
+            My Contact Book
+        </aura:set>
+        <aura:set attribute="footer">
+            <div class="slds-clearfix">
+                <div class="slds-page-header" role="banner">
+                    <div class="slds-float_right">
+                        <lightning:button label="Prev" iconName="utility:chevronleft" iconPosition="left"
+                            onclick="{!c.handlePrev}" disabled="{! v.pageNumber == 1}" />
+                        <lightning:button label="Next" iconName="utility:chevronright" iconPosition="right"
+                            disabled="{! v.isLastPage}" onclick="{!c.handleNext}" />
+                    </div>
+                    <p class="slds-page-header__title"> Page {!v.pageNumber} | Showing records from {!
+                        (v.fromData)+' to '+(v.toData)+ ' of ' +(v.totalData)} </p>
+                </div>
+            </div>
+        </aura:set>
+        <!-- Body -->
+        <div style="height: 300px">
+            <lightning:datatable aura:id="contactTable" columns="{! v.columns }" data="{! v.dataDisplay }" keyField="{!v.keyField}"
+                showRowNumberColumn="true" onrowselection="{! c.updateSelectedRow }" errors="{! v.errors }"
+                draftValues="{! v.draftValues }" onsave="{! c.handleSaveEdition }" />
+        </div>
+    </lightning:card>
+
+<!-- 
+ ██████ ██████  ███████  █████  ████████ ███████     ███    ██ ███████ ██     ██                     
+██      ██   ██ ██      ██   ██    ██    ██          ████   ██ ██      ██     ██                     
+██      ██████  █████   ███████    ██    █████       ██ ██  ██ █████   ██  █  ██                     
+██      ██   ██ ██      ██   ██    ██    ██          ██  ██ ██ ██      ██ ███ ██                     
+ ██████ ██   ██ ███████ ██   ██    ██    ███████     ██   ████ ███████  ███ ███                      
+                                                                                                     
+                                                                                                     
+ ██████  ██████  ███    ██ ████████  █████   ██████ ████████     ███████  ██████  ██████  ███    ███ 
+██      ██    ██ ████   ██    ██    ██   ██ ██         ██        ██      ██    ██ ██   ██ ████  ████ 
+██      ██    ██ ██ ██  ██    ██    ███████ ██         ██        █████   ██    ██ ██████  ██ ████ ██ 
+██      ██    ██ ██  ██ ██    ██    ██   ██ ██         ██        ██      ██    ██ ██   ██ ██  ██  ██ 
+ ██████  ██████  ██   ████    ██    ██   ██  ██████    ██        ██       ██████  ██   ██ ██      ██ 
+                                                                                                     
+ -->
+    <!-- Create Contact Modal -->
+    <aura:attribute name="displayModal" type="Boolean" default="false"
+        description="boolean flag to control modal visibility" />
+
+    <aura:if isTrue="{!v.displayModal}">
+        <div role="dialog" tabindex="-1" aria-labelledby="Modal" class="slds-modal slds-fade-in-open slds-modal_small">
+            <div class="slds-modal__container c__modalContainer">
+                <div class="slds-modal__header">
+                    <button class="slds-button slds-button--icon-inverse slds-modal__close" onclick="{!c.closeModal}">
+                        <lightning:icon iconName="utility:close" size="small" variant="bare" />
+                        <span class="slds-assistive-text">Close</span>
+                    </button>
+                    <h1 class="slds-text-heading--medium c__fontWeightTitle">Create Contact</h1>
+                </div>
+                <div class="slds-modal__content slds-p-around--medium c__modalContent">
+                    <div class="c_tableWrapper">
+                        <lightning:notificationsLibrary aura:id="notifLib" />
+                      
+                        <lightning:recordForm aura:id="myRecordForm" objectApiName="MyContact__c"
+                        fields="{!v.formFields}" onsubmit="{!c.handleSubmit}" onsuccess="{!c.handleSuccess}" />
+                       
+                    </div>
+                </div>
+                <div class="slds-modal__footer c__modalFooter">
+                    <!-- Footer Content Goes Here    -->
+                </div>
+            </div>
+        </div>
+
+        <div class="slds-backdrop slds-backdrop_open" aura:id="modalBackground"></div>
+    </aura:if>
+
+<!-- 
+███████ ██████  ██ ████████                                                                          
+██      ██   ██ ██    ██                                                                             
+█████   ██   ██ ██    ██                                                                             
+██      ██   ██ ██    ██                                                                             
+███████ ██████  ██    ██                                                                             
+                                                                                                     
+                                                                                                     
+ ██████  ██████  ███    ██ ████████  █████   ██████ ████████     ███████  ██████  ██████  ███    ███ 
+██      ██    ██ ████   ██    ██    ██   ██ ██         ██        ██      ██    ██ ██   ██ ████  ████ 
+██      ██    ██ ██ ██  ██    ██    ███████ ██         ██        █████   ██    ██ ██████  ██ ████ ██ 
+██      ██    ██ ██  ██ ██    ██    ██   ██ ██         ██        ██      ██    ██ ██   ██ ██  ██  ██ 
+ ██████  ██████  ██   ████    ██    ██   ██  ██████    ██        ██       ██████  ██   ██ ██      ██ 
+ -->
+<!-- Edit contact Modal -->
+
+    <aura:if isTrue="{!v.editModal}">
+        <div role="dialog" tabindex="-1" aria-labelledby="Modal" class="slds-modal slds-fade-in-open slds-modal_small">
+            <div class="slds-modal__container c__modalContainer">
+                <div class="slds-modal__header">
+                    <button class="slds-button slds-button--icon-inverse slds-modal__close"
+                        onclick="{!c.closeEditModal}">
+                        <lightning:icon iconName="utility:close" size="medium" variant="bare" />
+                        <span class="slds-assistive-text">Close</span>
+                    </button>
+                    <h1 class="slds-text-heading--medium c__fontWeightTitle">Edit Record</h1>
+                </div>
+                <div class="slds-modal__content slds-p-around--medium c__modalContent">
+                    <div class="c_tableWrapper">
+                        <lightning:card title="Edit Contact">
+                            <lightning:recordForm  aura:id="myEditRecordForm"  recordId="{!v.editRecordId}" objectApiName="MyContact__c"
+                                fields="{!v.formFields}" onsubmit="{!c.handleEditSubmit}" mode="edit" onsuccess="{!c.handleEditSuccess}" />
+                        </lightning:card>
+                    </div>
+                </div>
+                <div class="slds-modal__footer c__modalFooter">
+                    <div class="slds-grid">
+                        <div class="slds-col slds-size_6-of-12">
+                            <!-- Code -->
+                        </div>
+                        <div class="slds-col slds-size_6-of-12 slds-text-align_right">
+                            <!-- footr right float -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="slds-backdrop slds-backdrop_open" aura:id="modalBackground"></div>
+    </aura:if>
+</aura:component>
